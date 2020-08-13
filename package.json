@@ -1,0 +1,20 @@
+{
+  "name": "zzn-gmail-utils",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "npx ts-node index.ts"
+  },
+  "author": "Zainan Victor Zhou",
+  "license": "MIT",
+  "dependencies": {
+    "googleapis": "^59.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^14.0.27",
+    "ts-node": "^8.10.2",
+    "typescript": "^3.9.7"
+  }
+}
