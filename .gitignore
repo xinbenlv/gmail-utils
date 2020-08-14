@@ -1,4 +1,5 @@
 node_modules/
 
 credentials.json
+.credentials.*
 token.json
