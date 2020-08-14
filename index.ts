@@ -75,23 +75,23 @@ async function listLabels(auth) {
   let started = new Date();
   const gmail = google.gmail({version: 'v1', auth});
   let nextPageToken = "";
-  let msgList = [];
+  let threadList = [];
   do {
-    let res = await gmail.users.messages.list({
+    let res = await gmail.users.threads.list({
         userId: 'me',
         maxResults: 500,
         pageToken: nextPageToken
     });
     
-    console.log(`Received ${res.data.messages.length} messages, currently ${msgList.length}, nextPageToken = ${res.data.nextPageToken}, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
+    console.log(`Received ${res.data.threads.length} threads, currently ${threadList.length}, nextPageToken = ${res.data.nextPageToken}, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
     nextPageToken = res.data.nextPageToken;
-    msgList.push(...res.data.messages);
+    threadList.push(...res.data.threads);
   } while(nextPageToken);
-  msgList.forEach(async msg => {
-      let msgDetails = await gmail.users.messages.get({userId:"me", id:msg.id});
+  threadList.forEach(async msg => {
+      let msgDetails = await gmail.users.threads.get({userId:"me", id:msg.id});
       console.log(msgDetails);
   });
-  console.log(`Total messages length ${msgList.length}`);
+  console.log(`Total threads length ${threadList.length}`);
 }
 
 module.exports = {
