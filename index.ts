@@ -92,7 +92,12 @@ async function listMsgSenders(auth) {
   } while(pageNum < MAX_PAGE && nextPageToken);
   threadList.forEach(async msg => {
     let msgDetails = await gmail.users.threads.get({userId:"me", id:msg.id});
-    console.log(msgDetails.data.messages[0].payload.headers.find(h => h.name === "From").value);
+    let recipient = msgDetails.data.messages[0].payload.headers.find(h => h.name === "From").value;
+    if (/<.*@.*>/.test(recipient)) {
+      recipient = recipient.substring(recipient.indexOf("<") + 1, recipient.indexOf(">"))
+    }
+    recipient = recipient.toLowerCase();
+    console.log(recipient);
   });
   console.log(`Total threads length ${threadList.length}`);
 };
