@@ -181,6 +181,11 @@
   dependencies:
     "bignumber.js" "^9.0.0"
 
+"just-performance@4.3.0":
+  "integrity" "sha512-L7RjvtJsL0QO8xFs5wEoDDzzJwoiowRw6Rn/GnvldlchS2JQr9wFYPiwZcDfrbbujEKqKN0tvENdbjXdYhDp5Q=="
+  "resolved" "https://registry.npmjs.org/just-performance/-/just-performance-4.3.0.tgz"
+  "version" "4.3.0"
+
 "jwa@^2.0.0":
   "integrity" "sha512-jrZ2Qx916EA+fq9cEAeCROWPTfCwi1IVHqT2tapuqLEVVDKFDENFw1oL+MwrTvH6msKxsd1YTDVw6uKEcsrLEA=="
   "resolved" "https://registry.npmjs.org/jwa/-/jwa-2.0.0.tgz"
@@ -197,6 +202,13 @@
   dependencies:
     "jwa" "^2.0.0"
     "safe-buffer" "^5.0.1"
+
+"limiter@^2.1.0":
+  "integrity" "sha512-361TYz6iay6n+9KvUUImqdLuFigK+K79qrUtBsXhJTLdH4rIt/r1y8r1iozwh8KbZNpujbFTSh74mJ7bwbAMOw=="
+  "resolved" "https://registry.npmjs.org/limiter/-/limiter-2.1.0.tgz"
+  "version" "2.1.0"
+  dependencies:
+    "just-performance" "4.3.0"
 
 "lru-cache@^6.0.0":
   "integrity" "sha512-Jo6dJ04CmSjuznwJSS3pUeWmd/H0ffTlkXXgwZi+eq1UCmqQwCh+eLsYOYCwY991i2Fah4h1BEMCx4qThGbsiA=="

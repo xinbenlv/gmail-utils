@@ -1,6 +1,13 @@
 import readline = require('readline');
 import { google } from 'googleapis';
+import { RateLimiter } from "limiter";
 const fs = require('fs');
+
+const limiter = new RateLimiter({
+  tokensPerInterval: 10000,
+  interval: "minute",
+  fireImmediately: true
+});
 
 // If modifying these scopes, delete token.json.
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
@@ -9,7 +16,10 @@ const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
 // time.
 const TOKEN_PATH = 'token.json';
 
-
+async function gApiRateLimit(callback, quotaUnit) {
+  await limiter.removeTokens(quotaUnit);
+  return callback();
+}
 
 async function main() {
   // Load client secrets from a local file.
@@ -83,19 +93,18 @@ async function listMsgSenders(auth) {
   let MAX_PAGE = 3;
   let pageNum = 0;
   do {
-    let res = await gmail.users.threads.list({
+    let res = await gApiRateLimit(async ()=> await gmail.users.threads.list({
         userId: 'me',
-        maxResults: 50,
+        maxResults: 500,
         pageToken: nextPageToken
-    });
-
+    }), 10);
     console.log(`Received ${res.data.threads.length} threads, currently ${threadList.length}, nextPageToken = ${res.data.nextPageToken}, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
     nextPageToken = res.data.nextPageToken;
     threadList.push(...res.data.threads);
     pageNum++;
   } while(pageNum < MAX_PAGE && nextPageToken);
   threadList.forEach(async msg => {
-    let msgDetails = await gmail.users.threads.get({userId:"me", id:msg.id});
+    let msgDetails = await gApiRateLimit(async ()=> await gmail.users.threads.get({userId:"me", id:msg.id}), 10);
     let recipient = msgDetails.data.messages[0].payload.headers.find(h => h.name === "From").value;
     if (/<.*@.*>/.test(recipient)) {
       recipient = recipient.substring(recipient.indexOf("<") + 1, recipient.indexOf(">"))
