@@ -13,7 +13,7 @@ const TOKEN_PATH = 'token.json';
 fs.readFile('credentials.json', (err:any, content:string) => {
   if (err) return console.log('Error loading client secret file:', err);
   // Authorize a client with credentials, then call the Gmail API.
-  authorize(JSON.parse(content), listLabels);
+  authorize(JSON.parse(content), listMsgSenders);
 });
 
 /**
@@ -71,30 +71,33 @@ function getNewToken(oAuth2Client, callback) {
  *
  * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
  */
-async function listLabels(auth) {
+async function listMsgSenders(auth) {
   let started = new Date();
   const gmail = google.gmail({version: 'v1', auth});
   let nextPageToken = "";
   let threadList = [];
+  let MAX_PAGE = 3;
+  let pageNum = 0;
   do {
     let res = await gmail.users.threads.list({
         userId: 'me',
-        maxResults: 500,
+        maxResults: 50,
         pageToken: nextPageToken
     });
-    
+
     console.log(`Received ${res.data.threads.length} threads, currently ${threadList.length}, nextPageToken = ${res.data.nextPageToken}, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
     nextPageToken = res.data.nextPageToken;
     threadList.push(...res.data.threads);
-  } while(nextPageToken);
+    pageNum++;
+  } while(pageNum < MAX_PAGE && nextPageToken);
   threadList.forEach(async msg => {
-      let msgDetails = await gmail.users.threads.get({userId:"me", id:msg.id});
-      console.log(msgDetails);
+    let msgDetails = await gmail.users.threads.get({userId:"me", id:msg.id});
+    console.log(msgDetails.data.messages[0].payload.headers.find(h => h.name === "From").value);
   });
   console.log(`Total threads length ${threadList.length}`);
-}
+};
 
 module.exports = {
   SCOPES,
-  listLabels,
+  listLabels: listMsgSenders,
 };
