@@ -1,10 +1,12 @@
 import readline = require('readline');
 import { google } from 'googleapis';
 import { RateLimiter } from "limiter";
+import {MAX_PAGE, MAX_RESULTS, QUOTA_UNITS_PER_MIN, DB_NAME} from './consts';
 const fs = require('fs');
 
+
 const limiter = new RateLimiter({
-  tokensPerInterval: 9000,
+  tokensPerInterval: QUOTA_UNITS_PER_MIN,
   interval: "minute",
   fireImmediately: false
 });
@@ -88,32 +90,43 @@ function getNewToken(oAuth2Client, callback) {
 async function listMsgSenders(auth) {
   const gmail = google.gmail({version: 'v1', auth});
   let nextPageToken = "";
-  let MAX_PAGE = 100;
   let pageNum = 0;
   const { AceBase } = require('acebase');
   const options = { logLevel: 'warn', storage: { path: '.' } }; // optional settings
-  const db = new AceBase('my_db1', options); // nodejs
+  const db = new AceBase(DB_NAME, options); // nodejs
   await db.ready();
-  let knownMsgIds = new Set(Object.keys((await db.ref('msg').get()).val()));
+  let msgObjs = (await db.ref('msg').get()).val();
+  let knownMsgIds  = new Set([]);
+  if (msgObjs) knownMsgIds = new Set(Object.keys(msgObjs));
   console.log(`Known Msgs number = ${knownMsgIds.size}`);
+  let profile = await gmail.users.getProfile({userId: 'me'});
+  console.log(`user profile: `,profile);
+
   do {
     let started = new Date();
     let res = await gApiRateLimit(async ()=> await gmail.users.threads.list({
         userId: 'me',
-        maxResults: 500,
+        labelIds: ['INBOX'],
+        maxResults: MAX_RESULTS,
         pageToken: nextPageToken
     }), 10);
-    console.log(`Received ${res.data.threads.length} threads, currently at Page ${pageNum}, nextPageToken = ${res.data.nextPageToken}, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
+    console.log(`Received ${res.data.threads.length} threads, currently at Page ${pageNum}, nextPageToken = ${res.data.nextPageToken}, estimated size ${res.data.resultSizeEstimate}, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
     nextPageToken = res.data.nextPageToken;
     let currentThreadList = res.data.threads;
+    let skipped = 0;
     await Promise.all(currentThreadList.map(
       async msg => {
         if (knownMsgIds.has(msg.id)) {
+          skipped ++;
           //console.log(`Skip ${msg.id} because it already exists.`);
           return;
         }
         let msgDetails = await gApiRateLimit(async ()=> await gmail.users.threads.get({userId:"me", id:msg.id}), 10);
         let recipient = msgDetails.data.messages[0].payload.headers.find(h => h.name === "From")?.value;
+        let toRaw = msgDetails.data.messages[0].payload.headers.find(h => h.name === "To")?.value;
+        let subject = msgDetails.data.messages[0].payload.headers.find(h => h.name === "Subject")?.value;
+        let internalDate = msgDetails.data.messages[0].internalDate;
+        let sizeEstimate = msgDetails.data.messages[0].sizeEstimate;
         if (!recipient) return;
         if (/<.*@.*>/.test(recipient)) {
           recipient = recipient.substring(recipient.indexOf("<") + 1, recipient.indexOf(">"))
@@ -123,13 +136,17 @@ async function listMsgSenders(auth) {
         const updateJson = {};
         updateJson[msg.id] = {
           id: msg.id,
-          from: recipient
+          mailSize: sizeEstimate,
+          from: recipient,
+          subject: subject,
+          internalDate: internalDate,
+          toRaw: toRaw || "",
         };
         return db.ref('msg')
         .update(updateJson)
       }
     ));
-    console.log(`Done fetching message with page ${pageNum}, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
+    console.log(`Done fetching message with page ${pageNum}, skipped ${skipped} threads, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
     pageNum++;
   } while(pageNum < MAX_PAGE && nextPageToken);
 };

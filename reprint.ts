@@ -1,11 +1,14 @@
+import { DB_NAME } from "./consts";
+
 const { AceBase } = require('acebase');
-const db = new AceBase('my_db1', {logLevel: 'warn'});
+const db = new AceBase(DB_NAME, {logLevel: 'warn', readOnly: true});
 
 async function main() {
     await db.ready();
 
     let count = await db.ref('msg').count();
     let msgObjs = (await db.ref('msg').get()).val();
+    console.log(msgObjs);
     console.log(`Count = ${count}`);
     let emailList = Object.values(msgObjs).map((msg: any) => msg.from);
     extractCount(emailList, `Email`);
