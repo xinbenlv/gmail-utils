@@ -4,3 +4,4 @@ credentials.json
 .credentials.*
 token.json
 *.acebase/
+output/
