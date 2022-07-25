@@ -4,9 +4,9 @@ import { RateLimiter } from "limiter";
 const fs = require('fs');
 
 const limiter = new RateLimiter({
-  tokensPerInterval: 10000,
+  tokensPerInterval: 9000,
   interval: "minute",
-  fireImmediately: true
+  fireImmediately: false
 });
 
 // If modifying these scopes, delete token.json.
@@ -18,7 +18,7 @@ const TOKEN_PATH = 'token.json';
 
 async function gApiRateLimit(callback, quotaUnit) {
   await limiter.removeTokens(quotaUnit);
-  return callback();
+  return await callback();
 }
 
 async function main() {
@@ -86,33 +86,52 @@ function getNewToken(oAuth2Client, callback) {
  * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
  */
 async function listMsgSenders(auth) {
-  let started = new Date();
   const gmail = google.gmail({version: 'v1', auth});
   let nextPageToken = "";
-  let threadList = [];
-  let MAX_PAGE = 3;
+  let MAX_PAGE = 100;
   let pageNum = 0;
+  const { AceBase } = require('acebase');
+  const options = { logLevel: 'warn', storage: { path: '.' } }; // optional settings
+  const db = new AceBase('my_db1', options); // nodejs
+  await db.ready();
+  let knownMsgIds = new Set(Object.keys((await db.ref('msg').get()).val()));
+  console.log(`Known Msgs number = ${knownMsgIds.size}`);
   do {
+    let started = new Date();
     let res = await gApiRateLimit(async ()=> await gmail.users.threads.list({
         userId: 'me',
         maxResults: 500,
         pageToken: nextPageToken
     }), 10);
-    console.log(`Received ${res.data.threads.length} threads, currently ${threadList.length}, nextPageToken = ${res.data.nextPageToken}, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
+    console.log(`Received ${res.data.threads.length} threads, currently at Page ${pageNum}, nextPageToken = ${res.data.nextPageToken}, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
     nextPageToken = res.data.nextPageToken;
-    threadList.push(...res.data.threads);
+    let currentThreadList = res.data.threads;
+    await Promise.all(currentThreadList.map(
+      async msg => {
+        if (knownMsgIds.has(msg.id)) {
+          //console.log(`Skip ${msg.id} because it already exists.`);
+          return;
+        }
+        let msgDetails = await gApiRateLimit(async ()=> await gmail.users.threads.get({userId:"me", id:msg.id}), 10);
+        let recipient = msgDetails.data.messages[0].payload.headers.find(h => h.name === "From")?.value;
+        if (!recipient) return;
+        if (/<.*@.*>/.test(recipient)) {
+          recipient = recipient.substring(recipient.indexOf("<") + 1, recipient.indexOf(">"))
+        }
+        recipient = recipient.toLowerCase();
+        // console.log(recipient);
+        const updateJson = {};
+        updateJson[msg.id] = {
+          id: msg.id,
+          from: recipient
+        };
+        return db.ref('msg')
+        .update(updateJson)
+      }
+    ));
+    console.log(`Done fetching message with page ${pageNum}, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
     pageNum++;
   } while(pageNum < MAX_PAGE && nextPageToken);
-  threadList.forEach(async msg => {
-    let msgDetails = await gApiRateLimit(async ()=> await gmail.users.threads.get({userId:"me", id:msg.id}), 10);
-    let recipient = msgDetails.data.messages[0].payload.headers.find(h => h.name === "From").value;
-    if (/<.*@.*>/.test(recipient)) {
-      recipient = recipient.substring(recipient.indexOf("<") + 1, recipient.indexOf(">"))
-    }
-    recipient = recipient.toLowerCase();
-    console.log(recipient);
-  });
-  console.log(`Total threads length ${threadList.length}`);
 };
 
 module.exports = {

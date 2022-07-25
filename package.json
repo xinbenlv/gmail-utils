@@ -5,12 +5,14 @@
   "main": "index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "npx ts-node index.ts"
+    "start": "npx ts-node index.ts",
+    "reprint": "npx ts-node reprint.ts"
   },
   "author": "Zainan Victor Zhou",
   "license": "MIT",
   "dependencies": {
     "@types/gapi": "^0.0.42",
+    "acebase": "^1.21.7",
     "googleapis": "^59.0.0",
     "limiter": "^2.1.0"
   },
