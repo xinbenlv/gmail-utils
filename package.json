@@ -12,12 +12,17 @@
   "license": "MIT",
   "dependencies": {
     "@types/gapi": "^0.0.42",
-    "acebase": "^1.21.7",
+    "address-rfc2822": "^2.1.0",
+    "better-sqlite3": "^7.6.2",
     "csv-writer": "^1.6.0",
     "googleapis": "^59.0.0",
-    "limiter": "^2.1.0"
+    "limiter": "^2.1.0",
+    "sqlite": "^4.1.2",
+    "sqlite3": "^5.0.10",
+    "sqlstring-sqlite": "^0.1.1"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.5.0",
     "@types/node": "^14.18.22",
     "ts-node": "^8.10.2",
     "typescript": "^3.9.7"
