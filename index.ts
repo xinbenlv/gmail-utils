@@ -1,7 +1,7 @@
 import readline = require('readline');
 import { google } from 'googleapis';
 import { RateLimiter } from "limiter";
-import {MAX_PAGE, MAX_RESULTS, QUOTA_UNITS_PER_MIN, DB_FILEPATH} from './consts';
+import {MAX_PAGE, MAX_RESULTS, QUOTA_UNITS_PER_MIN, DB_FILEPATH, CREATE_MSG_TABLE_SQL} from './consts';
 import {Database} from 'sqlite3';
 import { open } from 'sqlite';
 const SqlString = require('sqlstring-sqlite');
@@ -30,14 +30,7 @@ async function main() {
     filename: DB_FILEPATH,
     driver: Database
   });
-  await dbSqlite3.exec(`CREATE TABLE IF NOT EXISTS emails (
-      MSG_ID TEXT PRIMARY KEY,
-      RAW_FROM TEXT,
-      RAW_TO TEXT,
-      DATE_TS INTEGER,
-      RAW_SUBJECT TEXT,
-      SIZE_EST INTEGER
-  );`);
+  await dbSqlite3.exec(CREATE_MSG_TABLE_SQL);
 
   // Load client secrets from a local file.
   fs.readFile('credentials.json', (err:any, content:string) => {
@@ -106,8 +99,8 @@ async function listMsgSenders(auth) {
   const gmail = google.gmail({version: 'v1', auth});
   let nextPageToken = "";
   let pageNum = 0;
-  let knownMsgIds  = await getKnownMsgIds();
-  console.log(`Known Msgs number = ${knownMsgIds.size}`);
+  let knownThreadIds  = await getKnownThreadIds();
+  console.log(`Known Msgs number = ${knownThreadIds.size}`);
   let profile = await gmail.users.getProfile({userId: 'me'});
   console.log(`user profile: `,profile);
 
@@ -115,38 +108,53 @@ async function listMsgSenders(auth) {
     let started = new Date();
     let res = await gApiRateLimit(async ()=> await gmail.users.threads.list({
         userId: 'me',
-        // labelIds: ['INBOX'],
+        labelIds: ['INBOX'],
         maxResults: MAX_RESULTS,
         pageToken: nextPageToken
     }), 100);
     console.log(`${new Date().toISOString()} Received ${res.data.threads.length} threads, currently at Page ${pageNum}, nextPageToken = ${res.data.nextPageToken}, estimated size ${res.data.resultSizeEstimate}, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
     nextPageToken = res.data.nextPageToken;
-    let currentThreadList = res.data.threads;
+    let threadList = res.data.threads;
+
     let skipped = 0;
-    await Promise.all(currentThreadList.map(
-      async msg => {
+    await Promise.all(threadList.map(
+      async thread => {
         try {
-          if (knownMsgIds.has(msg.id)) {
+          if (knownThreadIds.has(thread.id)) {
             skipped ++;
-            //console.log(`Skip ${msg.id} because it already exists.`);
             return;
           }
-          let msgDetails = await gApiRateLimit(async ()=> await gmail.users.threads.get({userId:"me", id:msg.id}), 20);
-          let rawFrom = msgDetails.data.messages[0].payload.headers.find(h => h.name === "From")?.value;
-          let rawTo = msgDetails.data.messages[0].payload.headers.find(h => h.name === "To")?.value;
-          let rawSubject = msgDetails.data.messages[0].payload.headers.find(h => h.name === "Subject")?.value;
-          let internalDate = msgDetails.data.messages[0].internalDate;
-          let sizeEstimate = msgDetails.data.messages[0].sizeEstimate;
-          // let sqlStr = SQL`INSERT INTO emails VALUES (${msg.id},${rawFrom},${rawTo},${internalDate},${rawSubject},${sizeEstimate})`;
-          let sqlStr = SqlString.format(`INSERT OR IGNORE INTO emails VALUES (?,?,?,?,?,?)`, [
-            msg.id,
-            rawFrom,
-            rawTo,
-            internalDate,
-            rawSubject,
-            sizeEstimate
-          ]);
-          await dbSqlite3.exec(sqlStr);
+          let threadRes = await gApiRateLimit(async ()=> await gmail.users.threads.get({userId:"me", id:thread.id}), 20);
+          Promise.all(threadRes.data.messages.map(async msg=> {
+            let rawFrom = msg.payload.headers.find(h => h.name === "From")?.value;
+            let rawTo = msg.payload.headers.find(h => h.name === "To")?.value;
+            let rawCc = msg.payload.headers.find(h => h.name === "Cc")?.value;
+            let rawBcc = msg.payload.headers.find(h => h.name === "Bcc")?.value;
+            let rawSubject = msg.payload.headers.find(h => h.name === "Subject")?.value;
+            let rawDeliveredTo = msg.payload.headers.find(h => h.name === "Delivered-To")?.value;
+            let rawReplyTo = msg.payload.headers.find(h => h.name === "Reply-To")?.value;
+            let internalDate = msg.internalDate;
+            let sizeEstimate = msg.sizeEstimate;
+            let fields = [
+              msg.id,
+              msg.threadId,
+              msg.labelIds.join(','),
+
+              rawFrom,
+              rawTo,
+              rawCc,
+              rawBcc,
+              rawDeliveredTo,
+              rawReplyTo,
+
+              internalDate,
+              rawSubject,
+              sizeEstimate
+            ];
+            let sqlStr = SqlString.format(`INSERT OR IGNORE INTO emails VALUES (${fields.map(f=>'?').join(',')})`, fields);
+            await dbSqlite3.exec(sqlStr);
+          }));
+
         } catch (err) {
           console.warn(`Error in getting message meta`, err);
         }
@@ -157,13 +165,14 @@ async function listMsgSenders(auth) {
   } while(pageNum < MAX_PAGE && nextPageToken);
 };
 
+async function getKnownThreadIds():Promise<Set<String>> {
+  const result = await dbSqlite3.all('SELECT MSG_THREAD_ID FROM emails');
+  return new Set(result.map(obj => obj.MSG_THREAD_ID));
+}
+
 module.exports = {
   SCOPES,
   listLabels: listMsgSenders,
 };
 
 main().then(()=>{console.log("done")});
-async function getKnownMsgIds():Promise<Set<String>> {
-  const result = await dbSqlite3.all('SELECT MSG_ID FROM emails');
-  return new Set(result.map(obj => obj.MSG_ID));
-}
