@@ -33,12 +33,14 @@ async function main() {
   if (!fs.existsSync(dirName)) {
     fs.mkdirSync(dirName, { recursive: true });
   }
+
   dbSqlite3 = await open({
     filename: DB_FILEPATH,
     driver: Database
   });
   await dbSqlite3.exec(CREATE_MSG_TABLE_SQL);
-
+  console.log("Done creating table");
+  
   // Load client secrets from a local file.
   fs.readFile('credentials.json', (err:any, content:string) => {
     if (err) return console.log('Error loading client secret file:', err);
@@ -156,9 +158,19 @@ async function listMsgSenders(auth) {
 
               internalDate,
               rawSubject,
-              sizeEstimate
+              sizeEstimate,
+              // and 18 empty fields
+              "", "", "",
+              "", "", "",
+              "", "", "",
+              "", "", "",
+              "", "", "",
+              "", "", "",
             ];
-            let sqlStr = SqlString.format(`INSERT OR IGNORE INTO emails VALUES (${fields.map(f=>'?').join(',')})`, fields);
+
+            // Change to insert or update with conflict
+            
+            let sqlStr = SqlString.format(`INSERT OR REPLACE INTO emails VALUES (${fields.map(f=>'?').join(',')})`, fields);
             await dbSqlite3.exec(sqlStr);
           }));
 
@@ -173,6 +185,7 @@ async function listMsgSenders(auth) {
 };
 
 async function getKnownThreadIds():Promise<Set<String>> {
+  // TODO: currently we get known threadIds from Database. If we need to refresh the database, we will need to get known threads Id from memory (and store into memory).
   const result = await dbSqlite3.all('SELECT MSG_THREAD_ID FROM emails');
   return new Set(result.map(obj => obj.MSG_THREAD_ID));
 }
