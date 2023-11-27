@@ -26,6 +26,13 @@ async function gApiRateLimit(callback, quotaUnit) {
 }
 
 async function main() {
+  // if the directory is not exist, create it
+  // get directory name
+  let dirName = DB_FILEPATH.split('/').slice(0, -1).join('/');
+  console.log(`dirName = ${dirName}`);
+  if (!fs.existsSync(dirName)) {
+    fs.mkdirSync(dirName, { recursive: true });
+  }
   dbSqlite3 = await open({
     filename: DB_FILEPATH,
     driver: Database
