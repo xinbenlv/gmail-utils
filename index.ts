@@ -45,6 +45,7 @@ async function main() {
   fs.readFile('credentials.json', (err:any, content:string) => {
     if (err) return console.log('Error loading client secret file:', err);
     // Authorize a client with credentials, then call the Gmail API.
+    // logout/unauthorize first
     authorize(JSON.parse(content), listMsgSenders);
   });
 }
@@ -117,7 +118,10 @@ async function listMsgSenders(auth) {
     let started = new Date();
     let res = await gApiRateLimit(async ()=> await gmail.users.threads.list({
         userId: 'me',
-        labelIds: ['INBOX'],
+        labelIds: [
+          'INBOX'
+        ], // comment this or change this if you want to download specific labelss
+        // q: "before:2024/01/01", // uncomment this if you want to do a search query
         maxResults: MAX_RESULTS,
         pageToken: nextPageToken
     }), 100);
@@ -147,7 +151,7 @@ async function listMsgSenders(auth) {
             let fields = [
               msg.id,
               msg.threadId,
-              msg.labelIds.join(','),
+              msg.labelIds?.join(',') || "",
 
               rawFrom,
               rawTo,

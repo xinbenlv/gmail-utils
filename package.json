@@ -10,6 +10,9 @@
   },
   "author": "Zainan Victor Zhou",
   "license": "MIT",
+  "engines": {
+    "node": "18"
+  },
   "dependencies": {
     "@types/gapi": "^0.0.42",
     "address-rfc2822": "^2.1.0",
