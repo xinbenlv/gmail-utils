@@ -4,6 +4,8 @@ import { RateLimiter } from "limiter";
 import {MAX_PAGE, MAX_RESULTS, QUOTA_UNITS_PER_MIN, DB_FILEPATH, CREATE_MSG_TABLE_SQL} from './consts';
 import {Database} from 'sqlite3';
 import { open } from 'sqlite';
+const dotenv = require('dotenv');
+dotenv.config();
 const SqlString = require('sqlstring-sqlite');
 const fs = require('fs');
 const limiter = new RateLimiter({
@@ -114,17 +116,27 @@ async function listMsgSenders(auth) {
   let profile = await gmail.users.getProfile({userId: 'me'});
   console.log(`user profile: `,profile);
 
+  const extraQuery = {};
+  if (process.env.INBOX_ONLY) { 
+    extraQuery['labelIds'] = ['INBOX'];
+  } else {
+    console.log("INBOX_ONLY is not set");
+  }
+  if (process.env.EXTRA_QUERY) {
+    extraQuery['q'] = process.env.EXTRA_QUERY;
+  } else {
+    console.log("EXTRA_QUERY is not set");
+  }
+  
   do {
     let started = new Date();
-    let res = await gApiRateLimit(async ()=> await gmail.users.threads.list({
-        userId: 'me',
-        labelIds: [
-          'INBOX'
-        ], // comment this or change this if you want to download specific labelss
-        // q: "before:2024/01/01", // uncomment this if you want to do a search query
-        maxResults: MAX_RESULTS,
-        pageToken: nextPageToken
-    }), 100);
+    let baseQuery = {
+      userId: 'me',
+      maxResults: MAX_RESULTS,
+      pageToken: nextPageToken
+    };
+    let queryObj = Object.assign({}, baseQuery, extraQuery);
+    let res = await gApiRateLimit(async ()=> await gmail.users.threads.list(queryObj), 100);
     console.log(`${new Date().toISOString()} Received ${res.data.threads.length} threads, currently at Page ${pageNum}, nextPageToken = ${res.data.nextPageToken}, estimated size ${res.data.resultSizeEstimate}, time elapsed ${Math.floor(new Date().getTime() - started.getTime())/1000.0} seconds.`);
     nextPageToken = res.data.nextPageToken;
     let threadList = res.data.threads;

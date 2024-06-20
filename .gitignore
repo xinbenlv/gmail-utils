@@ -6,3 +6,5 @@ token.json
 *.acebase/
 output/
 output.bak*/
+
+.env

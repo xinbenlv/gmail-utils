@@ -3,8 +3,8 @@ const CURRENT_DATE_STR = (new Date()).getTime();
 export const MAX_PAGE = 1000;
 export const MAX_RESULTS = 500;
 export const QUOTA_UNITS_PER_MIN = 10000;
-export const SQLITE_DB_NAME = `my_emails_inbox.sqlite3`;
-
+const dotenv = require('dotenv');
+dotenv.config();
 
 const ADDR_FIELDS = ['from', 'to', 'cc', 'bcc', 'delivered_to', 'reply_to'];
 
@@ -51,4 +51,12 @@ export const CREATE_MSG_TABLE_SQL = `CREATE TABLE IF NOT EXISTS emails (
 );`
 
 export const OUT_DIR = `./output/${CURRENT_DATE_STR}/`;
-export const DB_FILEPATH = `./output/${SQLITE_DB_NAME}`;
+
+const computeDbFilePath = () => {
+    if (process.env.INBOX_ONLY) {
+        return `./output/inbox_emails.sqlite3`;
+    }
+    return `./output/all_emails.sqlite3`;
+}
+
+export const DB_FILEPATH = computeDbFilePath();
