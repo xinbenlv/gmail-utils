@@ -5,31 +5,34 @@ const fs = require('fs');
 const addrparser = require('address-rfc2822');
 const ADDR_FIELDS = ['from', 'to', 'cc', 'bcc', 'reply_to', 'delivered_to'];
 async function main() {
+    console.log("start!");
     const db = new Database(DB_FILEPATH, { readonly: false });
     // await db.exec(CREATE_MSG_TABLE_SQL);
     // if (!fs.existsSync(OUT_DIR)) {
     //     fs.mkdirSync(OUT_DIR, { recursive: true });
     // }
     let entries: any[] = await db.prepare('SELECT * FROM emails').all();
-    let parsedEntries = entries.map(entryToParsedFieldRow);
-    // insert the fields back to the rows from the SQLite DB
-    let counter = 0;
-    for (let parsedEntry of parsedEntries) {
-        counter++;
-        let query = `UPDATE emails SET `;
-        ADDR_FIELDS.forEach(field => {
-            query += `'${field}' = '${parsedEntry[field]}', `;
-            query += `${field}_host = '${parsedEntry[`${field}_host`]}', `;
-            query += `${field}_2ld = '${parsedEntry[`${field}_2ld`]}', `;
-        });
-        // remove the last comma
-        query = query.slice(0, -2);
-
-        query += ` WHERE msg_id = '${parsedEntry.msgId}'`;
-        await db.exec(query);
-        if (counter % 100 == 1) console.log(`updated ${counter} out of ${parsedEntries.length}`);
+    const pageSize = 100;
+    for (let pageIndex = 0; pageIndex * pageSize < entries.length; pageIndex++) {
+        let startIndex = pageIndex * pageSize;
+        let endIndex = Math.min((pageIndex + 1) * pageSize, entries.length);
+        let parsedEntries = entries.slice(startIndex, endIndex)
+            .map(entryToParsedFieldRow);
+        for (let parsedEntry of parsedEntries) {
+            let query = `UPDATE emails SET `;
+            ADDR_FIELDS.forEach(field => {
+                query += `'${field}' = '${parsedEntry[field]}', `;
+                query += `${field}_host = '${parsedEntry[`${field}_host`]}', `;
+                query += `${field}_2ld = '${parsedEntry[`${field}_2ld`]}', `;
+            });
+            // remove the last comma
+            query = query.slice(0, -2);
+    
+            query += ` WHERE msg_id = '${parsedEntry.msgId}'`;
+            await db.exec(query);
+        }
+       console.log(`Updated page (${startIndex}, ${endIndex}) out of total ${entries.length}`);
     }
-
 }
 function getAddressHeaders(name) {
     return [
