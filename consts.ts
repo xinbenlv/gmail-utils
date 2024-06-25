@@ -60,3 +60,12 @@ const computeDbFilePath = () => {
 }
 
 export const DB_FILEPATH = computeDbFilePath();
+
+const computeDbFilePath2 = () => {
+    if (process.env.INBOX_ONLY) {
+        return `./output/inbox_emails2.sqlite3`;
+    }
+    return `./output/all_emails2.sqlite3`;
+}
+
+export const DB_FILEPATH2 = computeDbFilePath2();
