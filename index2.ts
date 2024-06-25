@@ -2,10 +2,9 @@
 import readline = require('readline');
 import { google } from 'googleapis';
 import { RateLimiter } from "limiter";
-import {MAX_PAGE, MAX_RESULTS, QUOTA_UNITS_PER_MIN, DB_FILEPATH2, CREATE_MSG_TABLE_SQL2, MAX_GMAIL_API_BATCH_SIZE} from './consts';
+import { MAX_RESULTS, QUOTA_UNITS_PER_MIN, DB_FILEPATH2, CREATE_MSG_TABLE_SQL2, MAX_GMAIL_API_BATCH_SIZE} from './consts';
 import {Database} from 'sqlite3';
 import { open } from 'sqlite';
-import axios from 'axios';
 var Batchelor = require('batchelor');
 
 const dotenv = require('dotenv');
@@ -53,36 +52,6 @@ async function authorizeAsync():Promise<any> {
       });
     });
   });
-}
-
-
-async function fetchMessagesInBatch(auth, messageIds: string[]) {
-
-  const accessToken = await auth.refreshAccessToken();
-  const batchEndpoint = 'https://gmail.googleapis.com/batch/gmail/v1'; // Gmail batch endpoint
-  let batchRequestBody = '';
-
-  // Construct the batch request body
-  messageIds.forEach((id, index) => {
-    batchRequestBody += `--batch_boundary\nContent-Type: application/http\n\nGET /gmail/v1/users/me/messages/${id}\n\n`;
-  });
-  batchRequestBody += `--batch_boundary--`;
-
-  // Make the batch request
-  const response = await axios.post(batchEndpoint, batchRequestBody, {
-    headers: {
-      // Oauth2 access token
-      Authorization: `Bearer ${accessToken.token}`,
-      'Content-Type': 'multipart/mixed; boundary=batch_boundary'
-    }
-  });
-
-  // Parse the batch response
-  // Note: You'll need to implement the parsing of the multipart response to extract individual messages
-  console.log("Batch request response:", response.data);
-  // Implement parsing logic here...
-
-  return response.data; // Return the parsed response
 }
 
 async function batchRetrieveMessage(
