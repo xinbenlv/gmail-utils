@@ -470,6 +470,11 @@ Response:  {
 }
 
 async function main() {
+  let startTime = new Date();
+  console.log("Start time", startTime.getTime());
+  // print time lapse
+  console.log(`Time lapse = ${(new Date().getTime() - startTime.getTime())/1000}sec`);
+
   // if the directory is not exist, create it
   // get directory name
   let dirName = DB_FILEPATH2.split('/').slice(0, -1).join('/');
@@ -484,7 +489,9 @@ async function main() {
   });
   await dbSqlite3.exec(CREATE_MSG_TABLE_SQL2);
   console.log("Done creating table");
-  
+  // print time lapse
+  console.log(`Time lapse = ${(new Date().getTime() - startTime.getTime())/1000}sec`);
+
   let auth = await authorizeAsync();
   let gmail = google.gmail({version: 'v1', auth});
   let nextPageToken = null;
@@ -502,6 +509,7 @@ async function main() {
     let newMessageIds = messageIds.filter(id => !knownMessageIds.has(id));
     console.log(`${knownMessageIds.size} knownMessageIds, ${newMessageIds.length} new messageIds`);
     for (let i = 0; i * MAX_GMAIL_API_BATCH_SIZE < newMessageIds.length; i++) { 
+      console.log(`Time lapse = ${(new Date().getTime() - startTime.getTime())/1000}sec`);
       let start = i * MAX_GMAIL_API_BATCH_SIZE;
       let end = Math.min((i + 1) * MAX_GMAIL_API_BATCH_SIZE, newMessageIds.length);
       let batchMessageIds = newMessageIds.slice(start, end);
@@ -526,6 +534,9 @@ async function main() {
 
   console.log("Done inserting emails");
   await dbSqlite3.close();
+  // print time lapse
+  console.log(`Time lapse = ${(new Date().getTime() - startTime.getTime())/1000}sec`);
+
 }
 
 /**
