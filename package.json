@@ -17,7 +17,6 @@
   "dependencies": {
     "@types/gapi": "^0.0.42",
     "address-rfc2822": "^2.1.0",
-    "axios": "^1.7.2",
     "batchelor": "^2.0.2",
     "better-sqlite3": "^7.6.2",
     "csv-writer": "^1.6.0",
