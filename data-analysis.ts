@@ -1,6 +1,5 @@
 import { DB_FILEPATH, OUT_DIR, CREATE_MSG_TABLE_SQL } from "./consts";
 import Database from 'better-sqlite3';
-
 const fs = require('fs');
 const addrparser = require('address-rfc2822');
 const ADDR_FIELDS = ['from', 'to', 'cc', 'bcc', 'reply_to', 'delivered_to'];
@@ -12,7 +11,7 @@ async function main() {
     //     fs.mkdirSync(OUT_DIR, { recursive: true });
     // }
     let entries: any[] = await db.prepare('SELECT * FROM emails').all();
-    const pageSize = 100;
+    const pageSize = 10000;
     for (let pageIndex = 0; pageIndex * pageSize < entries.length; pageIndex++) {
         let startIndex = pageIndex * pageSize;
         let endIndex = Math.min((pageIndex + 1) * pageSize, entries.length);
@@ -44,9 +43,15 @@ function getAddressHeaders(name) {
 function parseAddress(addressStr:string) {
     let parsedAddresses;
     try {
-        parsedAddresses = addressStr ? addrparser.parse(addressStr) : [];
-        parsedAddresses[0].host();
-    } catch (err) {
+        parsedAddresses = addressStr ? addrparser.parse(addressStr) : [];        
+        for(let parsed of parsedAddresses) {
+            if (!/^[a-zA-Z0-9.!#$%&’*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/
+            .test(parsed.address)) {
+                console.warn("Failed to parse address", addressStr);
+                return []; // early
+            }
+        }
+     } catch (err) {
         //console.warn(`Err from parsing from address`, entry);
         parsedAddresses = [];
     }

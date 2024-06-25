@@ -1,4 +1,4 @@
--- database: ../output/my_emails_inbox.sqlite3
+-- database: ../output/all_emails.sqlite3
 
 -- Use the ▷ button in the top right corner to run the entire file.
 
