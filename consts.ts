@@ -2,7 +2,7 @@ const CURRENT_DATE_STR = (new Date()).getTime();
 
 export const MAX_PAGE = 1000;
 export const MAX_RESULTS = 500;
-export const QUOTA_UNITS_PER_MIN = 250 * 60;
+export const QUOTA_UNITS_PER_MIN = 200 * 60;
 export const MAX_GMAIL_API_BATCH_SIZE = 100;
 const dotenv = require('dotenv');
 dotenv.config();

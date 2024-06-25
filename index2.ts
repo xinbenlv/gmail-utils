@@ -518,20 +518,43 @@ async function main() {
   
   let auth = await authorizeAsync();
   let gmail = google.gmail({version: 'v1', auth});
-  let result = await gApiRateLimit(async ()=> await gmail.users.messages.list({
-    userId: 'me',
-    maxResults: MAX_RESULTS,
-  }), 5);
+  let nextPageToken = null;
+  while (true) {
+    let result = await gApiRateLimit(async ()=> await gmail.users.messages.list({
+      userId: 'me',
+      maxResults: MAX_RESULTS,
+      pageToken: nextPageToken
+    }), 5);
+    // if no nextPageToken, break
+    let messageIds = result.data.messages.map(item => item.id);
+    // find existing messageId by inner join
+    let existingMessageIds = await dbSqlite3.all('SELECT MSG_ID FROM emails WHERE MSG_ID IN (' + messageIds.map(SqlString.escape).join(',') + ')');
+    let knownMessageIds = new Set(existingMessageIds.map(item => item['MSG_ID']));
+    let newMessageIds = messageIds.filter(id => !knownMessageIds.has(id));
+    console.log(`${knownMessageIds.size} knownMessageIds, ${newMessageIds.length} new messageIds`);
+    for (let i = 0; i * MAX_GMAIL_API_BATCH_SIZE < newMessageIds.length; i++) { 
+      let start = i * MAX_GMAIL_API_BATCH_SIZE;
+      let end = Math.min((i + 1) * MAX_GMAIL_API_BATCH_SIZE, newMessageIds.length);
+      let batchMessageIds = newMessageIds.slice(start, end);
+      console.log(`batchMessageIds.length = ${batchMessageIds.length}`)
+      console.log(`quota units consumed = 5 * batchMessageIds.length = ${5 * batchMessageIds.length}`)
+      let parsedEmails = await gApiRateLimit(
+        async ()=> await batchRetrieveMessage(auth, batchMessageIds), 
+        5 * batchMessageIds.length
+      );
+      let insertSql = `INSERT INTO emails VALUES ${parsedEmails.map(email => `(${SqlString.escape(email)})`).join(',')}`;
+      await dbSqlite3.exec(insertSql);
+    }
 
-  let messageIds = result.data.messages.map(item => item.id);
-  for (let i = 0; i * MAX_GMAIL_API_BATCH_SIZE < messageIds.length; i++) { 
-    let start = i * MAX_GMAIL_API_BATCH_SIZE;
-    let end = Math.min((i + 1) * MAX_GMAIL_API_BATCH_SIZE, messageIds.length);
-    let batchMessageIds = messageIds.slice(start, end);
-    let parsedEmails = await gApiRateLimit(async ()=> await batchRetrieveMessage(auth, batchMessageIds), 5 * batchMessageIds.length);
-    let insertSql = `INSERT INTO emails VALUES ${parsedEmails.map(email => `(${SqlString.escape(email)})`).join(',')}`;
-    await dbSqlite3.exec(insertSql);
+    if (!result.data.nextPageToken) {
+      break;
+    } else {
+      nextPageToken = result.data.nextPageToken;
+    }
+    const currentTotalRows = await dbSqlite3.get('SELECT COUNT(*) as count FROM emails');
+    console.log(`currentTotalRows = ${currentTotalRows.count}`);
   }
+
   console.log("Done inserting emails");
   await dbSqlite3.close();
 }
