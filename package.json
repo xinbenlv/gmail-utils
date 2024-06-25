@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start2": "npx ts-node index2.ts",
     "start": "npx ts-node index.ts",
-    "da": "npx ts-node data-analysis.ts"
+    "da": "npx ts-node data-analysis.ts",
+    "da2": "npx ts-node data-analysis2.ts"
   },
   "author": "Zainan Victor Zhou",
   "license": "MIT",

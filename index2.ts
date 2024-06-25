@@ -2,7 +2,7 @@
 import readline = require('readline');
 import { google } from 'googleapis';
 import { RateLimiter } from "limiter";
-import {MAX_PAGE, MAX_RESULTS, QUOTA_UNITS_PER_MIN, DB_FILEPATH2, CREATE_MSG_TABLE_SQL} from './consts';
+import {MAX_PAGE, MAX_RESULTS, QUOTA_UNITS_PER_MIN, DB_FILEPATH2, CREATE_MSG_TABLE_SQL2, MAX_GMAIL_API_BATCH_SIZE} from './consts';
 import {Database} from 'sqlite3';
 import { open } from 'sqlite';
 import axios from 'axios';
@@ -59,7 +59,6 @@ async function authorizeAsync():Promise<any> {
 async function fetchMessagesInBatch(auth, messageIds: string[]) {
 
   const accessToken = await auth.refreshAccessToken();
-  console.log("XXX accessToken = ", accessToken);
   const batchEndpoint = 'https://gmail.googleapis.com/batch/gmail/v1'; // Gmail batch endpoint
   let batchRequestBody = '';
 
@@ -91,6 +90,8 @@ async function batchRetrieveMessage(
   messageIds:string[], 
   historyId?:string
 ) {
+  // if needs refresh token
+  // await auth.refreshAccessToken();
 
   var batch = new Batchelor({
     // Any batch uri endpoint in the form: https://www.googleapis.com/batch/<api>/<version>
@@ -422,13 +423,13 @@ Response:  {
 
     return res.parts.map(part => {
       let msg = part.body;
-      let rawFrom = msg.payload.headers.find(h => h.name === "From")?.value;
-      let rawTo = msg.payload.headers.find(h => h.name === "To")?.value;
-      let rawCc = msg.payload.headers.find(h => h.name === "Cc")?.value;
-      let rawBcc = msg.payload.headers.find(h => h.name === "Bcc")?.value;
-      let rawSubject = msg.payload.headers.find(h => h.name === "Subject")?.value;
-      let rawDeliveredTo = msg.payload.headers.find(h => h.name === "Delivered-To")?.value;
-      let rawReplyTo = msg.payload.headers.find(h => h.name === "Reply-To")?.value;
+      let rawFrom = msg.payload?.headers?.find(h => h.name === "From")?.value;
+      let rawTo = msg.payload?.headers?.find(h => h.name === "To")?.value;
+      let rawCc = msg.payload?.headers?.find(h => h.name === "Cc")?.value;
+      let rawBcc = msg.payload?.headers?.find(h => h.name === "Bcc")?.value;
+      let rawSubject = msg.payload?.headers?.find(h => h.name === "Subject")?.value;
+      let rawDeliveredTo = msg.payload?.headers?.find(h => h.name === "Delivered-To")?.value;
+      let rawReplyTo = msg.payload?.headers?.find(h => h.name === "Reply-To")?.value;
       let internalDate = msg.internalDate;
       let sizeEstimate = msg.sizeEstimate;
       let fields = [
@@ -442,10 +443,10 @@ Response:  {
         rawBcc,
         rawDeliveredTo,
         rawReplyTo,
-
         internalDate,
         rawSubject,
         sizeEstimate,
+        historyId,
         // and 18 empty fields
         "", "", "",
         "", "", "",
@@ -480,6 +481,7 @@ Response:  {
               internalDate,
               rawSubject,
               sizeEstimate,
+              historyId,
               // and 18 empty fields
               "", "", "",
               "", "", "",
@@ -511,21 +513,25 @@ async function main() {
     filename: DB_FILEPATH2,
     driver: Database
   });
-  await dbSqlite3.exec(CREATE_MSG_TABLE_SQL);
+  await dbSqlite3.exec(CREATE_MSG_TABLE_SQL2);
   console.log("Done creating table");
   
   let auth = await authorizeAsync();
   let gmail = google.gmail({version: 'v1', auth});
-  let result = await gmail.users.messages.list({
+  let result = await gApiRateLimit(async ()=> await gmail.users.messages.list({
     userId: 'me',
     maxResults: MAX_RESULTS,
-  });
+  }), 5);
 
-  let messageIds = result.data.messages.map(item => item.id).slice(0,100);
-  let parsedEmails = await batchRetrieveMessage(auth, messageIds);
-  let insertSql = `INSERT INTO emails VALUES ${parsedEmails.map(email => `(${SqlString.escape(email)})`).join(',')}`;
-  console.log("insertSql = ", insertSql);
-  await dbSqlite3.exec(insertSql);
+  let messageIds = result.data.messages.map(item => item.id);
+  for (let i = 0; i * MAX_GMAIL_API_BATCH_SIZE < messageIds.length; i++) { 
+    let start = i * MAX_GMAIL_API_BATCH_SIZE;
+    let end = Math.min((i + 1) * MAX_GMAIL_API_BATCH_SIZE, messageIds.length);
+    let batchMessageIds = messageIds.slice(start, end);
+    let parsedEmails = await gApiRateLimit(async ()=> await batchRetrieveMessage(auth, batchMessageIds), 5 * batchMessageIds.length);
+    let insertSql = `INSERT INTO emails VALUES ${parsedEmails.map(email => `(${SqlString.escape(email)})`).join(',')}`;
+    await dbSqlite3.exec(insertSql);
+  }
   console.log("Done inserting emails");
   await dbSqlite3.close();
 }
