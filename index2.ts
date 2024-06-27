@@ -495,6 +495,9 @@ async function main() {
   let auth = await authorizeAsync();
   let gmail = google.gmail({version: 'v1', auth});
   let nextPageToken = null;
+
+  let profile = await gApiRateLimit(async ()=> await gmail.users.getProfile({userId: 'me'}), 1);
+  console.log(`Profile data`, profile.data);
   while (true) {
     let result = await gApiRateLimit(async ()=> await gmail.users.messages.list({
       userId: 'me',
@@ -507,7 +510,8 @@ async function main() {
     let existingMessageIds = await dbSqlite3.all('SELECT MSG_ID FROM emails WHERE MSG_ID IN (' + messageIds.map(SqlString.escape).join(',') + ')');
     let knownMessageIds = new Set(existingMessageIds.map(item => item['MSG_ID']));
     let newMessageIds = messageIds.filter(id => !knownMessageIds.has(id));
-    console.log(`${knownMessageIds.size} knownMessageIds, ${newMessageIds.length} new messageIds`);
+    console.log(`pageToken = ${nextPageToken}, ${knownMessageIds.size} knownMessageIds, ${newMessageIds.length} new messageIds`);
+    if (newMessageIds.length > 2) console.log(`First two new messagesIds are ${newMessageIds[0]} and ${newMessageIds[1]}`);
     for (let i = 0; i * MAX_GMAIL_API_BATCH_SIZE < newMessageIds.length; i++) { 
       console.log(`Time lapse = ${(new Date().getTime() - startTime.getTime())/1000}sec`);
       let start = i * MAX_GMAIL_API_BATCH_SIZE;
